@@ -49,7 +49,12 @@ app.get('/api/products/pages/:page', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM world_bike_product');
 
-    res.json(result.rows.filter((prod) => prod.id >= (page[1]*10-10) && prod.id <= (page[1]*10-2)));
+    console.log(+page.slice(1));
+
+    res.json({
+      pages: Math.round(result.rows.length / 9),
+      products: result.rows.filter((prod) => prod.id >= (page[1]*10-10) && prod.id <= (page[1]*10-1)),
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -68,6 +73,7 @@ app.get('/api/products/:id', async (req, res) => {
 app.get('/api/product-properties/:productid', async (req, res) => {
   try {
     const {productid} = req.params;
+    console.log(req.query);
     const result = await pool.query(`SELECT * FROM world_bike_properties WHERE prodct_id = ${productid.slice(1)}`);
     res.json(result.rows);
   } catch (error) {
@@ -95,10 +101,12 @@ app.get('/api/products/from-biggest', async (req, res) => {
   }
 });
 
-app.get('/api/getproducts/filters', async (req, res) => {
+app.get('/api/getproducts/filters/', async (req, res) => {
   try {
-    const {filters} = req.query;
-    const {has, categories, cost, brands, frame_materials} = JSON.parse(filters);
+    const {filters, currentPage} = req.query;
+    const {has, categories, cost, brands, frame_materials, sortBy} = JSON.parse(filters);
+
+    console.log(sortBy);
 
     const categoriesString = categories.length > 0 ? categories.map(str => `'${str}'`).join(', ') : "'triatlon', 'twise_suspension', 'bmx', 'single_suspension', 'single_speed', 'gravy', 'mountain', 'city', 'road_bike'"
     const brandsString = brands.length > 0 ? brands.map(str => `'${str}'`).join(', ') : "'look', 'trek', 'orbea', 'black','scott'"
@@ -118,7 +126,26 @@ app.get('/api/getproducts/filters', async (req, res) => {
       AND world_bike_properties.frame_material IN(${frameMaterialsString})
       `)).rows;
 
-    res.status(201).json({ data: JSON.stringify(result) });
+
+    res.status(201).json({ 
+      pagesCount: Math.round(result.length / 9), 
+      data: JSON.stringify(
+        result.sort((a, b) => {
+          if (sortBy === "Цены: по возрастанию") {
+            return a.cost - b.cost
+          } else if (sortBy === "Цены: по убыванию") {
+            return b.cost - a.cost
+          } else {
+            return a, b; 
+          }
+        })
+        .filter((item, index) => {
+          if (index <= +currentPage*10-1 && index >= +currentPage*10-10) {
+            return item;
+          };
+        })
+        
+      )});
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -144,9 +171,11 @@ app.post('/api/mail', async (req, res) => {
 
 app.post('/api/order', async (req, res) => {
   try {
-    const { name,	surname,	city,	street,	house,	appartment,	phone_number,	email,	order_comment,	delivery_type,	payment_type,	choosed_products} = req.body;
+    const { name,	surname,	city,	street,	house,	appartment,	phone,	email,	comment,	delivery,	payment,	choosed_products} = req.body;
 
-    await pool.query(`INSERT INTO world_bike_orders ( name,	surname,	city,	street,	house,	appartment,	phone_number,	email,	order_comment,	delivery_type,	payment_type,	choosed_products) VALUES ('${name}',	'${surname}',	'${city}',	'${street}',	'${house}',	'${appartment}',	'${phone_number}',	'${email}',	'${order_comment}',	'${delivery_type}',	'${payment_type}',	'${choosed_products}')`);
+    console.log(req.body);
+
+    await pool.query(`INSERT INTO world_bike_orders ( name,	surname,	city,	street,	house,	appartment,	phone_number,	email,	order_comment,	delivery_type,	payment_type,	choosed_products) VALUES ('${name}',	'${surname}',	'${city}',	'${street}',	'${house}',	'${appartment}',	'${phone}',	'${email}',	'${comment}',	'${delivery}',	'${payment}',	'${choosed_products}')`);
     res.status(201).json({ message: 'Product created successfully' });
 
   } catch (error) {
