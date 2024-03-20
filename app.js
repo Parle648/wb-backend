@@ -1,7 +1,9 @@
 const express = require('express');
 const { Pool } = require('pg');
 const app = express();
+const cors = require('cors');
 app.use(express.json());
+app.use(cors())
 app.use(express.urlencoded({ extended: true}))
 
 const PORT = process.env.PORT || 3001;
@@ -104,9 +106,9 @@ app.get('/api/products/from-biggest', async (req, res) => {
 app.get('/api/getproducts/filters/', async (req, res) => {
   try {
     const {filters, currentPage} = req.query;
-    const {has, categories, cost, brands, frame_materials, sortBy} = JSON.parse(filters);
+    const {has, categories, cost, brands, frame_materials, sortBy, search} = JSON.parse(filters);
 
-    console.log(sortBy);
+    console.log(search);
 
     const categoriesString = categories.length > 0 ? categories.map(str => `'${str}'`).join(', ') : "'triatlon', 'twise_suspension', 'bmx', 'single_suspension', 'single_speed', 'gravy', 'mountain', 'city', 'road_bike'"
     const brandsString = brands.length > 0 ? brands.map(str => `'${str}'`).join(', ') : "'look', 'trek', 'orbea', 'black','scott'"
@@ -128,15 +130,11 @@ app.get('/api/getproducts/filters/', async (req, res) => {
 
 
     res.status(201).json({ 
-      pagesCount: Math.round(result.length / 9), 
-      data: JSON.stringify(
-        result.sort((a, b) => {
-          if (sortBy === "Цены: по возрастанию") {
-            return a.cost - b.cost
-          } else if (sortBy === "Цены: по убыванию") {
-            return b.cost - a.cost
-          } else {
-            return a, b; 
+      products: (
+        result
+        .filter((item) => {
+          if (item.title.toLowerCase().includes(search.toLowerCase())) {
+            return item
           }
         })
         .filter((item, index) => {
@@ -144,8 +142,17 @@ app.get('/api/getproducts/filters/', async (req, res) => {
             return item;
           };
         })
-        
-      )});
+        .sort((a, b) => {
+          if (sortBy === "Цены: по возрастанию") {
+            return a.cost - b.cost
+          } else if (sortBy === "Цены: по убыванию") {
+            return b.cost - a.cost
+          } else {
+            return a, b; 
+          }
+        })),
+        pages: Math.round(result.length / 9), 
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -183,27 +190,42 @@ app.post('/api/order', async (req, res) => {
   }
 });
 
-// fetch('http://localhost:3001/api/order', {
-// 	method: 'POST',
-// 	headers: {
-// 		'Content-Type': 'application/json',
-// 	},
-// 	body: JSON.stringify({
-// 		name: 'sad',	surname: 'asd',	city: 'asd',	street: 'asd',	house: 'asd',	appartment: 'asd',	phone_number: 'asd',	email: 'asd',	order_comment: 'asd',	delivery_type: 'asd',	payment_type: 'asd',	choosed_products: 'asd'
-// 	}),
-// })
-
-app.post('/api/mail', async (req, res) => {
+app.post('/api/email', async (req, res) => {
   try {
-    const {mail, agree} = req.body;
+    const {email, agree} = req.body;
 
-    console.log(`INSERT INTO world_bike_mail_letters (email, agree) VALUES ('${mail}', ${agree})`);
-    const query = {
-      text: 'INSERT INTO Products (mail, treatment_data) VALUES ($1, $2)',
-      values: [mail, agree],
-    };
-    await pool.query(`INSERT INTO world_bike_mail_letters (email, agree) VALUES ('${mail}', ${agree})`);
-    res.status(201).json({ message: 'Product created successfully' });
+    console.log(req);
+
+    await pool.query(`INSERT INTO world_bike_mail_letters (email, agree) VALUES ('${email}', ${agree})`);
+    res.status(201).json({ created: true });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/quick-orders', async (req, res) => {
+  try {
+    const {id, name, phone} = req.body;
+
+    console.log(id, name, phone);
+
+    await pool.query(`INSERT INTO world_bike_quick_orders (product_id, name, phone_number) VALUES (${id}, '${name}', '${phone}')`);
+    res.status(201).json({ created: true });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/contact-withus', async (req, res) => {
+  try {
+    const {name, email, phone, company, comment} = req.body;
+
+    console.log(name, email, phone, company, comment);
+
+    await pool.query(`INSERT INTO world_bike_contacts_withus ("name", email, phone, "company", comment) VALUES ('${name}', '${email}', '${phone}', '${company}', '${comment}')`);
+    res.status(201).json({ created: true });
 
   } catch (error) {
     res.status(500).json({ error: error.message });
